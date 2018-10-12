@@ -71,7 +71,34 @@ class SiteController extends Controller
         return $this->render('index', ['hybrids' => $hybrids]);
     }
 
-    public function actionStatistics()
+    public function actionStatisticsTask()
+    {
+        if (Yii::$app->request->isAjax) {
+            $data = Yii::$app->request->post();
+            $hybridFirst = $data['first'];
+            $hybridSecond = $data['second'];
+
+            $query = "SELECT COUNT(Hybrids.Name) as result
+FROM StatisticsData
+JOIN Cultures ON StatisticsData.CultureId = Cultures.id
+JOIN Hybrids ON StatisticsData.HybridId = Hybrids.id
+WHERE CONCAT( StatisticsData.Latitude, StatisticsData.Longitude ) 
+IN (SELECT CONCAT(StatisticsData.Latitude, StatisticsData.Longitude) FROM StatisticsData WHERE StatisticsData.HybridId = $hybridFirst)
+AND Hybrids.id = $hybridSecond
+GROUP BY Hybrids.Name";
+
+            $response = Yii::$app->db->createCommand($query)
+                ->queryColumn();
+
+
+            \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+            return [
+                'response' => $response,
+            ];
+        }
+    }
+
+    public function actionStatisticsExample()
     {
         if (Yii::$app->request->isAjax) {
             $data = Yii::$app->request->post();
