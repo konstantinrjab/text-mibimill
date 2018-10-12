@@ -6,11 +6,11 @@ use app\models\Hybrids;
 use app\models\StatisticsData;
 use Yii;
 use yii\filters\AccessControl;
+use yii\helpers\VarDumper;
 use yii\web\Controller;
 use yii\web\Response;
 use yii\filters\VerbFilter;
-use app\models\LoginForm;
-use app\models\ContactForm;
+use yii\db\Expression;
 
 class SiteController extends Controller
 {
@@ -78,22 +78,23 @@ class SiteController extends Controller
             $hybridFirst = $data['first'];
             $hybridSecond = $data['second'];
 
-            $query = "SELECT COUNT(Hybrids.Name) as result
-FROM StatisticsData
-JOIN Cultures ON StatisticsData.CultureId = Cultures.id
-JOIN Hybrids ON StatisticsData.HybridId = Hybrids.id
-WHERE CONCAT( StatisticsData.Latitude, StatisticsData.Longitude ) 
-IN (SELECT CONCAT(StatisticsData.Latitude, StatisticsData.Longitude) FROM StatisticsData WHERE StatisticsData.HybridId = $hybridFirst)
-AND Hybrids.id = $hybridSecond
-GROUP BY Hybrids.Name";
+            $subquery = StatisticsData::find()
+                ->select('CONCAT(`StatisticsData`.`Latitude`, `StatisticsData`.`Longitude`)')
+                ->where('StatisticsData.HybridId=:hybridFirst', [':hybridFirst' => $hybridFirst]);
 
-            $response = Yii::$app->db->createCommand($query)
-                ->queryColumn();
-
+            $result = StatisticsData::find()
+                ->select('COUNT(`Hybrids`.`Name`) as result')
+                ->join('JOIN', 'Cultures', 'StatisticsData.CultureId = Cultures.id')
+                ->join('JOIN', 'Hybrids', 'StatisticsData.HybridId = Hybrids.id')
+                ->where(['in', ' CONCAT( StatisticsData.Latitude, StatisticsData.Longitude ) ', $subquery])
+                ->andWhere('Hybrids.id='.$hybridSecond)
+                ->groupBy('Hybrids.Name')
+                ->asArray()
+                ->one();
 
             \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
             return [
-                'response' => $response,
+                'response' => $result['result'],
             ];
         }
     }
@@ -104,22 +105,23 @@ GROUP BY Hybrids.Name";
             $data = Yii::$app->request->post();
             $hybrid = $data['hybridID'];
 
-            $query = "SELECT CONCAT(Hybrids.Name, ' (', COUNT(Hybrids.Name), ')') as result
-FROM StatisticsData
-JOIN Cultures ON StatisticsData.CultureId = Cultures.id
-JOIN Hybrids ON StatisticsData.HybridId = Hybrids.id
-WHERE CONCAT( StatisticsData.Latitude, StatisticsData.Longitude ) 
-IN (SELECT CONCAT(StatisticsData.Latitude, StatisticsData.Longitude) FROM StatisticsData WHERE StatisticsData.HybridId = $hybrid)
-AND Hybrids.id <> $hybrid
-GROUP BY Hybrids.Name";
+            $subquery = StatisticsData::find()
+                ->select('CONCAT(`StatisticsData`.`Latitude`, `StatisticsData`.`Longitude`)')
+                ->where('StatisticsData.HybridId=:hybrid', [':hybrid' => $hybrid]);
 
-            $response = Yii::$app->db->createCommand($query)
-                ->queryColumn();
-
+            $expression = new Expression('CONCAT(Hybrids.Name, \' ( \', COUNT(Hybrids.Name), \' )\') as result');
+            $result = StatisticsData::find()
+                ->addSelect($expression)
+                ->join('JOIN', 'Cultures', '`StatisticsData`.`CultureId` = `Cultures`.`id`')
+                ->join('JOIN', 'Hybrids', '`StatisticsData`.`HybridId` = `Hybrids`.`id`')
+                ->where(['in', ' CONCAT( StatisticsData.Latitude, StatisticsData.Longitude ) ', $subquery])
+                ->andWhere('Hybrids.id<>'.$hybrid)
+                ->groupBy('Hybrids.Name')
+                ->column();
 
             \Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
             return [
-                'response' => $response,
+                'response' => $result,
             ];
         }
     }

@@ -12,7 +12,7 @@ $this->title = 'My Yii Application';
 <?php
 $js = <<<JS
 $('[name=hybrids_2]').on('change', function() {
-    $("select[name=statistics] option").each(function() {
+    $("[name=statistics_2] option").each(function() {
         $(this).remove();
     });
     $.ajax({
